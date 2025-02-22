@@ -38,30 +38,25 @@ pipeline {
         }
 
         stage('Test') {
-            agent { docker { image 'node:20' } }
             steps {
-                sh 'npm ci'
-                sh 'npm run test'
+                sh 'docker run --rm -v $(pwd):/app -w /app node:20 sh -c "npm ci && npm run test"'
             }
         }
 
         stage('Build') {
-            agent { docker { image 'node:20' } }
             steps {
-                sh 'npm run build'
+                sh 'docker run --rm -v $(pwd):/app -w /app node:20 sh -c "npm run build"'
                 archiveArtifacts artifacts: 'build/**', fingerprint: true
             }
         }
 
         stage('Install Dependencies') {
-            agent { docker { image 'node:20' } }
             steps {
-                sh 'npm install'
+                sh 'docker run --rm -v $(pwd):/app -w /app node:20 sh -c "npm install"'
             }
         }
 
         stage('Docker Build') {
-            agent { docker { image 'docker:24' } }
             steps {
                 script {
                     sh 'docker build -t ${ECR_REPO}:${IMAGE_TAG} .'
@@ -72,11 +67,9 @@ pipeline {
         }
 
         stage('Push to AWS ECR') {
-            agent { docker { image 'amazonlinux:2' } }
             steps {
                 script {
-                    sh 'yum install -y aws-cli'
-                    sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+                    sh 'aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com'
                     sh 'docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}'
                     sh 'docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:latest'
                 }
@@ -84,7 +77,6 @@ pipeline {
         }
 
         stage('Deploy to Staging') {
-            agent { docker { image 'node:20' } }
             environment {
                 REACT_APP_ENV = 'staging'
             }
@@ -94,7 +86,6 @@ pipeline {
         }
 
         stage('Deploy to Production') {
-            agent { docker { image 'node:20' } }
             environment {
                 REACT_APP_ENV = 'production'
             }
