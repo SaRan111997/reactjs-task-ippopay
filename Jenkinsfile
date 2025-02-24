@@ -60,7 +60,7 @@ pipeline {
                         docker build -t %ECR_REPO%:%IMAGE_TAG% .
                         """
         
-                        echo "Docker image built successfully: ${ecrRepo}:${imageTag}"
+                        echo "Docker image built successfully: %ECR_REPO%:%IMAGE_TAG%"
                     }
                 }
             }
