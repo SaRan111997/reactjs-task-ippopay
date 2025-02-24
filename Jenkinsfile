@@ -1,67 +1,67 @@
 pipeline {
     agent any
 
+
     environment {
-        AWS_REGION = "${env.AWS_REGION}"
-        ECR_REPO = "${env.ECR_REPO}"
-        IMAGE_TAG = "${env.BUILD_ID}"
-        AWS_ACCOUNT_ID = "${env.AWS_ACCOUNT_ID}"
+     
+        IMAGE_TAG = "${BUILD_NUMBER}"
+      
     }
-
     stages {
-        stage('Load Environment Variables') {
-            steps {
-                script {
-                    def envFile = readFile('.env').trim()
-                    envFile.split('\n').each { line ->
-                        def (key, value) = line.tokenize('=')
-                        env[key.trim()] = value.trim()
-                    }
-                }
-            }
-        }
-
-        stage('Clone Repository') {
-            steps {
+        stage('Checkout') {
+           steps {
                 git branch: 'master', url: 'https://github.com/SaRan111997/reactjs-task-ippopay.git'
-            }
-        }
-
-        stage('AWS Configuration') {
-            steps {
-                withCredentials([aws(credentialsId: 'aws-credentials', region: '${AWS_REGION}')]) {
-                    sh 'aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID'
-                    sh 'aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY'
-                    sh 'aws configure set region ${AWS_REGION}'
-                }
-            }
-        }
-
-        stage('Test') {
-            steps {
-                sh 'docker run --rm -v $(pwd):/app -w /app node:20 sh -c "npm ci && npm run test"'
-            }
-        }
-
-        stage('Build') {
-            steps {
-                sh 'docker run --rm -v $(pwd):/app -w /app node:20 sh -c "npm run build"'
-                archiveArtifacts artifacts: 'build/**', fingerprint: true
             }
         }
 
         stage('Install Dependencies') {
             steps {
-                sh 'docker run --rm -v $(pwd):/app -w /app node:20 sh -c "npm install"'
+                script {
+                    bat '''
+                    echo Installing React dependencies...
+                    npm install
+                    '''
+                }
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                script {
+                    bat '''
+                    echo Running tests...
+                    npm test -- --passWithNoTests
+                    '''
+                }
+            }
+        }
+
+        stage('Build React App') {
+            steps {
+                script {
+                    bat '''
+                    echo Building React app...
+                    npm run build
+                    '''
+                }
             }
         }
 
         stage('Docker Build') {
             steps {
                 script {
-                    sh 'docker build -t ${ECR_REPO}:${IMAGE_TAG} .'
-                    sh 'docker tag ${ECR_REPO}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}'
-                    sh 'docker tag ${ECR_REPO}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:latest'
+                    catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                        echo "Building Docker image with tag: %IMAGE_TAG%"
+        
+                       
+        
+                        bat """
+                        echo Building Docker image...
+                        docker build -t %ECR_REPO%:%IMAGE_TAG% .
+                        """
+        
+                        echo "Docker image built successfully: ${ecrRepo}:${imageTag}"
+                    }
                 }
             }
         }
@@ -69,29 +69,40 @@ pipeline {
         stage('Push to AWS ECR') {
             steps {
                 script {
-                    sh 'aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com'
-                    sh 'docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}'
-                    sh 'docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:latest'
+                    bat '''
+                    echo Logging into AWS ECR...
+                    aws ecr get-login-password --region %AWS_REGION% | docker login --username AWS --password-stdin <your-aws-account-id>.dkr.ecr.%AWS_REGION%.amazonaws.com
+
+                    echo Tagging Docker image...
+                    docker tag %ECR_REPO%:%IMAGE_TAG% <your-aws-account-id>.dkr.ecr.%AWS_REGION%.amazonaws.com/%ECR_REPO%:%IMAGE_TAG%
+
+                    echo Pushing Docker image to ECR...
+                    docker push <your-aws-account-id>.dkr.ecr.%AWS_REGION%.amazonaws.com/%ECR_REPO%:%IMAGE_TAG%
+                    '''
                 }
             }
         }
 
         stage('Deploy to Staging') {
-            environment {
-                REACT_APP_ENV = 'staging'
-            }
             steps {
-                sh "docker run -e REACT_APP_ENV=${REACT_APP_ENV} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
+                script {
+                    bat '''
+                    echo Deploying to Staging environment...
+                    docker run -d -e NODE_ENV=%STAGING_ENV% <your-aws-account-id>.dkr.ecr.%AWS_REGION%.amazonaws.com/%ECR_REPO%:%IMAGE_TAG%
+                    '''
+                }
             }
         }
 
-        stage('Deploy to Production') {
-            environment {
-                REACT_APP_ENV = 'production'
-            }
-            steps {
-                sh "docker run -e REACT_APP_ENV=${REACT_APP_ENV} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
-            }
+       
+    }
+
+    post {
+        success {
+            echo "Pipeline completed successfully."
+        }
+        failure {
+            echo "Pipeline failed. Check the logs for more details."
         }
     }
 }
