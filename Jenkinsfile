@@ -127,7 +127,7 @@ The OWASP ZAP security scan for the React application has completed. Please find
 Best regards,
 Jenkins Pipeline
 ''',
-            to: 'saran1191997@gmail.com',
+            to: 'yourmail@gmail.com',
             attachmentsPattern: 'zap_report.html',
             mimeType: 'text/html'
         )
@@ -193,7 +193,7 @@ Jenkins Pipeline
                 body: "Hi Team,\n\nPlease find attached the Trivy vulnerability scan report.\n\nRegards,\nJenkins",
                 attachLog: false,
                 attachmentsPattern: "trivy-report.txt",
-                to: 'saran1191997@gmail.com'
+                to: 'yourmail@gmail.com'
             )
         }
     
