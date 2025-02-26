@@ -100,7 +100,7 @@ pipeline {
         docker rm -f reactapp || echo No existing container to remove.
 
         echo Running Docker container for the React app...
-        docker run -d -p 3000:80 --name reactapp %ECR_REPO%:%IMAGE_TAG%
+        docker run -d -p 80:80 --name reactapp %ECR_REPO%:%IMAGE_TAG%
         '''
     }
 }
